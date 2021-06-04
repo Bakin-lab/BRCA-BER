@@ -1,0 +1,492 @@
+---
+title: "Bakin Fig.1"
+author: "Mohammed Aruwaili"
+date: "11/13/2020"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+editor_options:
+  chunk_output_type: console
+---
+
+```{r, warning = F, message = F, echo = F}
+knitr::opts_chunk$set(echo = FALSE, fig.width=16,fig.height=4)
+
+# options
+#options(stringsAsFactors = F)
+#knit_hooks$set(optipng = hook_optipng)
+#knit_hooks$set(pngquant = hook_pngquant)
+#knitr::opts_chunk$set(message = F, warning = F, fig.align = "center", echo = F)
+
+
+
+labelit<-function(text,cex=NULL,...)
+{
+    ds <- dev.size("in")
+    # xy coordinates of device corners in user coordinates
+    x <- grconvertX(c(0, ds[1]), from="in", to="user")
+    y <- grconvertY(c(0, ds[2]), from="in", to="user")  
+  
+      fig <- par("fig")
+      dx <- (x[2] - x[1])
+      dy <- (y[2] - y[1])
+      x <- x[1] + dx * fig[1:2]
+      y <- y[1] + dy * fig[3:4]
+      
+      sw <- strwidth(text, cex=cex) * 60/100
+      sh <- strheight(text, cex=cex) * 60/100
+      
+      x1<-x[1] + sw
+      y1<-y[2] - sh
+      
+      text(x1, y1, text, cex=cex, xpd=NA, ...)
+  
+}
+
+library(ComplexHeatmap)
+library(circlize)
+library(knitr)
+library(ggplot2)
+library(plyr)
+```
+
+
+```{r}
+col<-c("dodgerblue3", "firebrick3","tan1","limegreen")
+palette(col)
+
+
+setwd("~/TCGA/Breast Cancer")
+META<-t(read.csv("2020-0624-MAdata/Fig.E/final list of RRG, BER, MMR genes.csv",nrow=3,header=T,row.names=1))
+META<-as.data.frame(META)
+META$MUT<-as.numeric(as.character(META$Mutation_Count))
+META$PAM<-META$PAM50_subtype
+META$TP53<-as.character(META$TP53)
+META<-META[META$PAM %in% c("Basal-like", "HER2-enriched", "Luminal A", "Luminal B"),]
+#levels(META$PAM)[5]<-NA
+#levels(META$PAM)[levels(META$PAM)%in%c("Normal-like","")]<-NA
+
+
+# change the P53 status to Wild Type amd Mutation
+META[META=="MUT;"]<-"Mutation"
+META[META=="HOMDEL;"]<-"Wild Type"
+META[META=="MUT; HOMDEL;"]<-"Mutation"
+META[META=="HOMDEL; MUT;"]<-"Mutation"
+META[META=="AMP;"]<-"Wild Type"
+META[META==""] <- "Wild Type"
+
+#chang2 HER2-emriched to HER2
+META$PAM<-as.character(META$PAM)
+META[META=="HER2-enriched"]<- "HER2"
+
+MUTS<-t(read.csv("2020-0624-MAdata/Fig.E/final list of RRG, BER, MMR genes.csv",row.names=1,nrow=29))
+MUTS<-as.data.frame(MUTS[rownames(META),])
+
+S<-read.csv("2020-0624-MAdata/Fig.A/S_phase.csv",skip=3,header=F,row.names=1)
+colnames(S)<-colnames(read.csv("2020-0624-MAdata/Fig.A/S_phase.csv",nrows=1,header=T,row.names=1))
+
+M<-read.csv("2020-0624-MAdata/Fig.B/M_phases.csv",skip=3,
+            header=F,row.names=1)
+colnames(M)<-colnames(read.csv("2020-0624-MAdata/Fig.B/M_phases.csv",nrows=1,header=T,row.names=1))
+
+BER<-read.csv("2020-0624-MAdata/Fig.C/BER genes.csv",
+              skip=3, header=F,row.names=1)
+colnames(BER)<-colnames(read.csv("2020-0624-MAdata/Fig.C/BER genes.csv",nrows=1,header=T,row.names=1))
+
+MMR<-read.csv("2020-0624-MAdata/Fig.D/MMR genes.csv",
+              skip=3,header=F,row.names=1)
+colnames(MMR)<-colnames(read.csv("2020-0624-MAdata/Fig.D/MMR genes.csv",nrows=1,header=T,row.names=1))
+
+RRG<-read.csv("2020-0624-MAdata/Fig.F/RRG.csv",
+              skip=2,header=F,row.names=1)
+colnames(RRG)<-colnames(read.csv("2020-0624-MAdata/Fig.F/RRG.csv",nrows=1,header=T,row.names=1))
+
+
+
+SS<-apply(S,2,mean,na.rm=TRUE)[rownames(META)]
+MM<-apply(M,2,mean,na.rm=TRUE)[rownames(META)]
+BR<-apply(BER,2,mean,na.rm=TRUE)[rownames(META)]
+MR<-apply(MMR,2,mean,na.rm=TRUE)[rownames(META)]
+RG<-apply(RRG,2,mean,na.rm=TRUE)[rownames(META)]
+
+
+# PAM Subtypes colors
+col1 = ifelse(META$PAM=="Basal-like", "dodgerblue3",
+            ifelse(META$PAM=="HER2", "firebrick3",
+                   ifelse(META$PAM== "Luminal A", "tan1","limegreen")))
+
+col2<-rgb(c(0,255,255,0),
+          c(0,0,165,255),
+          c(255,0,0,0),
+          max=255,
+          alpha=128)
+
+col4= c("dodgerblue3", "firebrick3","tan1","limegreen")
+#PAM Classification. 
+PAM1= c("Basal-like", "HER2", "Luminal A", "Luminal B")
+
+#P53 Classification
+META$TP53 <- factor(META$TP53, levels = c("Wild Type", "Mutation"))
+
+
+
+```
+
+
+
+A z-score for a sample indicates the number of standard deviations away from the mean of expression in the reference.  
+
+The formula is : 
+z = (expression in tumor sample - mean expression in reference sample) / standard deviation of expression in reference sample
+
+"For mRNA expression data, They typically compute the relative expression of an individual gene and tumor to the gene's expression distribution in a reference population. That reference population is either all tumors that are diploid for the gene in question, or, when available, normal adjacent tissue."
+
+
+```{r}
+# create the plot margin
+#bitmap("S, M , TMB gene expression.png", width = 8, height = 4.5, res = 300)
+
+layout(matrix(c(1,4,2,5,3,6),2,3))
+par(mar=c(5,6,2,1))
+
+
+#Panel A: S phase pathway boxplot based on molecular PAM Subtype. 
+boxplot(SS~META$PAM,col=col2,border=col2,xlab="PAM50 Molecular Subtypes", ylab="S Gene Expression", cex.axis =1.9, cex.lab=2, cex.main=1, ylim=c(-3,4))
+#labelit("A",cex=1.5, font=2)
+
+#Panel B: M phase pathway boxplot based on molecular PAM Subtype. 
+boxplot(MM~META$PAM,col=col2,border=col2,xlab="PAM50 Molecular Subtypes", ylab="M Gene Expression", cex.axis =1.9, cex.lab=2, cex.main=1, ylim=c(-3,4))
+#labelit("B",cex=1.5, font=2)
+
+#Panel C: Tumor Mutational Borden based on molecular PAM Subtype.
+boxplot(META$MUT~META$PAM,boxfill=col2,border=col2,xlab="PAM50 Molecular Subtypes", ylab="Tumor Mutational Burden", cex.axis =1.9, cex.lab=2, cex.main=1.5, ylim= c(0,300))
+#labelit("C",cex=1.5, font=2)
+
+
+
+META$TP53 <- factor(META$TP53, levels = c("Wild Type", "Mutation"))
+col3 = ifelse(META$TP53=="Mutation","firebrick3", "dodgerblue3")
+
+# Panel D:boxplot of SS of TNBC based on TP53 Status
+boxplot(SS~META$TP53,col=col3,xlab="P53 Status", ylab="S Gene Expression",cex.axis =1.9, cex.lab=2, cex.main=1.5, ylim=c(-3,4.5))
+#labelit("D",cex=2, font=2)
+t1<- t.test(SS~I(META$TP53=="Wild Type")) #p<0.001
+t1
+# for pvals
+axis(3,at=1:2,line=-1.3,lab=c("",""),tcl=1)
+text(x=1.5,y=0,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+# Panel E:boxplot of MM of TNBC based on TP53 Status
+boxplot(MM~META$TP53,col=col3,xlab="P53 Status", ylab="M Gene Expression",cex.axis =1.9, cex.lab=2, cex.main=1.5, ylim=c(-3,4.5))
+#labelit("E",cex=2, font=2)
+t2 <- t.test(MM~I(META$TP53=="Wild Type")) #p<0.001
+t2
+# for pvals
+axis(3,at=1:2,line=-1.3,lab=c("",""),tcl=1)
+text(x=1.5,y=444,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+# Panel F:boxplot of TMB of TNBC based on TP53 Status
+boxplot(META$MUT~META$TP53,col=col3,xlab="P53 Status", ylab="Tumor Mutational Burden",cex.axis =1.9, cex.lab=2, cex.main=1.5, ylim= c(0,350))
+#labelit("F",cex=2, font=2)
+t3 <- t.test(META$MUT~I(META$TP53=="Wild Type")) #p<0.001
+t3
+# for pvals
+axis(3,at=1:2,line=-1.3,lab=c("",""),tcl=1)
+text(x=1.5,y=444,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+#dev.off()
+#include_graphic("S, M , TMB gene expression.png", dpi=300)
+
+```
+
+
+```{r}
+
+# Correlation Between BER, MMR and RRG Gene Sets
+layout(matrix(c(1,2,3),1,3))
+par(mar=c(5,6,2,1))
+setx<-c("POLD3","SSBP1","EXO1","RFC4","PCNA","RFC2","MSH6","MSH2","POLD1")
+set2<-c("MBD4","POLD1","LIG1","PCNA","NEIL3","FEN1","UNG","TDG")
+sety<-c("BUB1","BUB3","CDC25B","CDC25A","BIRC5","CCNE2","CCNB1","CCNB2","CCNF","CDC20","CDC6","CDCA3","CENPE","CENPF","CKS1B","DTL","MCM2","NCN6","PLK1")
+
+BR<-apply(BER[set2,],2,mean,na.rm=TRUE)[rownames(META)]
+MR<-apply(MMR[setx,],2,mean,na.rm=TRUE)[rownames(META)]
+RG<-apply(RRG[sety,],2,mean,na.rm=TRUE)[rownames(META)]
+
+#Panel D :correlation plot of BER/MMR expression
+plot(BR,MR,col=col1,pch=19,xlab="BER Genes Expression",ylab="MMR Genes Expression", main="BER/MMR Gene Pathway", cex.axis =1.9, cex.lab=1.8, cex.main=1.5)
+legend("topleft", legend=PAM1,col=col2,pch=19, bty="n",y.intersp=0.8,x.intersp=0.8,text.width=0.1, cex=1.2)
+#labelit("D",cex=1.5, font=2)
+
+#Panel E:correlation plot of BER/MMR expression
+plot(MR,RG,col=col1,pch=19,xlab="MMR Genes Expression",ylab="RRG Genes Expression", main="MMR/RRGGene Pathway", cex.axis =1.9, cex.lab=1.8, cex.main=1.5)
+legend("topleft", legend=PAM1,col=col2,pch=19, bty="n",y.intersp=0.8,x.intersp=0.8,text.width=0.1, cex=1.2)
+#labelit("E",cex=1.5, font=2)
+
+#Panel F:correlation plot of BER/MMR expression
+plot(BR,RG,col=col1,pch=19,xlab="BER Genes Expression",ylab="RRG Genes Expression", main="BER/RRG Gene Pathway", cex.axis =1.9, cex.lab=1.8, cex.main=1.5)
+legend("topleft", legend=PAM1,col=col2,pch=19, bty="n",y.intersp=0.8,x.intersp=0.8,text.width=0.1, cex=1.2)
+#labelit("F",cex=1.5, font=2)
+
+```
+
+
+```{r}
+
+layout(matrix(c(1,4,2,5,3,6),2,3))
+par(mar=c(5,6,2,1))
+
+# Panel A: MMR and BER pathway scores based on TP53
+plot(BR,MR,pch=19,col=col3, type = "p", xlab="BER Gene Expression",ylab="MMR Gene Expression",  cex.axis =1.9, cex.lab=1.9, cex.main=1.5)
+legend("topleft", legend=c("WT","Mutation"),col=c("dodgerblue3","firebrick3"),pch=19, bty="n",y.intersp=0.3,x.intersp=0.3,text.width=0.1, cex=1.2)
+#labelit("A",cex=1.5, font=2)
+
+cor.test(BR,MR)
+
+# Panel B: RRG and BER pathway scores based on TP53
+plot(BR,RG,pch=19,col=col3, type = "p", xlab="BER Gene Expression",ylab="RRG Gene Expression", cex.axis =1.9, cex.lab=1.9, cex.main=1.5)
+legend("topleft", legend=c("WT","Mutation"),col=c("dodgerblue3","firebrick3"),pch=19, bty="n",y.intersp=0.3,x.intersp=0.3,text.width=0.1, cex=1.2)
+#labelit("B",cex=1.5, font=2)
+
+cor.test(BR,RG)
+
+# Panel C: RRG and MMR pathway scores based on TP53
+plot(MR,RG,pch=19,col=col3, type = "p", xlab="MMR Gene Expression",ylab="RRG Gene Expression",cex.axis =1.9, cex.lab=1.9, cex.main=1.5)
+legend("topleft", legend=c("WT","Mutation"),col=c("dodgerblue3","firebrick3"),pch=19, bty="n",y.intersp=0.3,x.intersp=0.3,text.width=0.1, cex=1.2)
+#labelit("C",cex=1.5, font=2)
+cor.test(MR,RG)
+
+#strified the Based like based on TP53
+META1 <- META[META$PAM %in% c("Basal-like"),]
+
+BRR<-apply(BER[set2,],2,mean,na.rm=TRUE)[rownames(META1)]
+MRR<-apply(MMR[setx,],2,mean,na.rm=TRUE)[rownames(META1)]
+RGG<-apply(RRG[sety,],2,mean,na.rm=TRUE)[rownames(META1)]
+
+META1$TP53 <- factor(META1$TP53, levels = c("Wild Type", "Mutation"))
+col5 = ifelse(META1$TP53=="Mutation","firebrick3","dodgerblue3")
+
+
+# Panel D: MMR and BER of TNBC based on TP53
+plot(BRR,MRR,pch=19,col=col5, type = "p", xlab="BER Gene Expression",ylab="MMR Gene Expression",cex.axis =1.9, cex.lab=1.8, cex.main=1.8, xlim=c(-1.5, 2.5), ylim=c(-1.5, 2.5))
+legend("topleft", legend=c("WT","Mutation"),col=c("dodgerblue3","firebrick3"),pch=19, bty="n",y.intersp=0.3,x.intersp=0.3,text.width=0.1, cex=1.2)
+#labelit("D",cex=1.5, font=2)
+cor.test(BRR,MRR)
+
+
+
+# Panel E: RRG and BER of TNBC based on TP53
+plot(BRR,RGG,pch=19,col=col5, type = "p", xlab="BER Gene Expression",ylab="RRG Gene Expression",cex.axis =1.9, cex.lab=1.8, cex.main=1.5, xlim=c(-1.5, 2.5), ylim=c(-1.5, 2.5)) 
+legend("topleft", legend=c("WT","Mutation"),col=c("dodgerblue3","firebrick3"),pch=19, bty="n",y.intersp=0.3,x.intersp=0.3,text.width=0.1, cex=1.2)
+#labelit("E",cex=1.5, font=2)
+
+
+# Panel F: RRG and MMR of TNBC based on TP53
+plot(MRR,RGG,pch=19,col=col5, type = "p", xlab="MMR Gene Expression",ylab="RRG Gene Expression", cex.axis =1.9, cex.lab=1.8, cex.main=1.5, xlim=c(-1.5, 2.5), ylim=c(-1.5, 2.5))
+legend("topleft", legend=c("WT","Mutation"),col=c("dodgerblue3","firebrick3"),pch=19, bty="n",y.intersp=0.3,x.intersp=0.3,text.width=0.1, cex=1.2)
+#labelit("F",cex=1.5, font=2)
+
+
+
+
+
+```
+
+
+
+```{r}
+
+
+
+layout(matrix(c(1,4,2,5,3,6),2,3))
+par(mar=c(5,6,2,1))
+# Panel B:boxplot of BER based on TP53 Status
+boxplot(BR~META$TP53,col=col3,xlab="P53 Status", ylab="BER Gene Expression", cex.axis =1.9, cex.lab=2, cex.main=1.8, ylim =c(-2,4.5))
+#labelit("A",cex=2, font=2)
+# ttest Statstical  
+t9 <- t.test(BR~I(META$TP53=="Wild Type")) #p<0.001
+t9
+# for pvals
+axis(3,at=1:2,line=-2.5,lab=c("",""),tcl=2)
+text(x=1.5,y=444,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+# Panel D:boxplot of MMR based on TP53 Status
+boxplot(MR~META$TP53,col=col3,xlab="P53 Status", ylab="MMR Gene Expression", cex.axis =1.9, cex.lab=2, cex.main=1.8, ylim=c(-2,4.5))
+#labelit("B",cex=2, font=2)
+t4 <- t.test(MR~I(META$TP53=="Wild Type")) #p<0.001
+t4
+# for pvals
+axis(3,at=1:2,line=-2.5,lab=c("",""),tcl=2)
+text(x=1.5,y=444,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+# Panel F:boxplot of RGG based on TP53 Status
+boxplot(RG~META$TP53,col=col3,xlab="P53 Status", ylab="RRG Gene Expression", cex.axis =1.9, cex.lab=2, cex.main=1.8, ylim=c(-2,4.5))
+#labelit("C",cex=2, font=2)
+t5 <- t.test(RG~I(META$TP53=="Wild Type")) #p<0.001
+t5
+# for pvals
+axis(3,at=1:2,line=-2.5,lab=c("",""),tcl=2)
+text(x=1.5,y=444,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+
+# Panel B:boxplot of BER of TNBC based on TP53 Status
+boxplot(BRR~META1$TP53,col=col5,xlab="P53 Status", ylab="BER Gene Expression",cex.axis =1.9, cex.lab=2, cex.main=1.8, ylim =c(-2,4.5))
+#labelit("D",cex=2, font=2)
+t6 <- t.test(BRR~I(META1$TP53=="Wild Type")) #p<0.001
+t6
+# for pvals
+axis(3,at=1:2,line=-2.5,lab=c("",""),tcl=2)
+text(x=1.5,y=333,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+
+# Panel D:boxplot of MMR of TNBC based on TP53 Status
+boxplot(MRR~META1$TP53,col=col5,xlab="P53 Status", ylab="MMR Gene Expression",cex.axis =1.9, cex.lab=2, cex.main=1.8, ylim=c(-2,4.5))
+#labelit("E",cex=2, font=2)
+t7 <- t.test(MRR~I(META1$TP53=="Wild Type")) #p<0.001
+t7
+# for pvals
+axis(3,at=1:2,line=-2.5,lab=c("",""),tcl=2)
+text(x=1.5,y=444,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+
+# Panel H3:boxplot of RGG of TNBC based on TP53 Status
+boxplot(RGG~META1$TP53,col=col5,xlab="P53 Status", ylab="RRG Gene Expression",cex.axis =1.9, cex.lab=2, cex.main=1.8, ylim=c(-2,4.5))
+#labelit("F",cex=2, font=2)
+t8 <- t.test(RGG~I(META1$TP53=="Wild Type")) #p<0.001
+t8
+# for pvals
+axis(3,at=1:2,line=-2.5,lab=c("",""),tcl=2)
+text(x=1.5,y=444,label="p=2.2e-16",srt=4,adj=30,cex=3)
+
+```
+
+```{r}
+## add mut heatmap
+xx<-MUTS[,c("TP53","MDM4",
+        #"MCM6","MCM2",
+        "UNG","TDG","POLB","NEIL3","LIG1","PARP1","APEX1","MUTYH",
+        "MSH2","MSH3","MSH6","MLH3","PMS2")]
+xx<-as.matrix(xx)
+xx[xx=="MUT;"]<-"Mutation"
+xx[xx=="HOMDEL;"]<-"Deep Deletion"
+xx[xx=="MUT; HOMDEL;"]<-"Mutation/Deep Deletion"
+xx[xx=="HOMDEL; MUT;"]<-"Mutation/Deep Deletion"
+xx[xx=="AMP;"]<-"Amplification"
+xx[xx==""] <- "Wild Type"
+
+
+setB<-c("PARP1","MBD4","POLD1","LIG1","PCNA","NEIL3",
+        "FN1","UNG","TDG","POLD3","MUTYH")
+setM<-c("EXO1","RFC2","RFC4","MSH6","MSH2","SSBP1","POLD2",
+        "PMS1","PMS2","LIG4","RFC3","RPA1","RPA2")
+setR<-c("BUB1","BUB3","CDC25B","CDC25A","BIRC5","CCNE2","CCNB1","CCNB2","CCNF","CDC20","CDC6","CDCA3","CENPE","CENPF","CKS1B","DTL","MCM2","NCN6","PLK1")
+
+setB<-intersect(setB,rownames(BER))
+setM<-intersect(setM,rownames(MMR))
+setR<-intersect(setR,rownames(RRG))
+x1<-t(BER[setB,])
+x2<-t(MMR[setM,])
+x3<-t(RRG[setR,])
+
+x1<-na.omit(x1)
+rw<-rownames(x1)
+ra<-META[rw,"PAM"]
+rw<-rw[!is.na(ra)]
+
+x1<-x1[rw,]
+x2<-x2[rw,]
+x3<-x3[rw,]
+xx<-xx[rw,]
+
+hc<-hclust(dist(x1)+dist(x2)+dist(x3)+3*dist(xx!="Wild Type"))
+col<-colorRamp2(c(-3,0,3),c("blue","white","red"))
+
+h1<-Heatmap(x1,show_row_names = FALSE,
+            column_title="Base Excision Repair",
+            name="mRNA\nZ-score",cluster_rows=hc,col=col,
+            #top_annotation = ta,
+            column_title_gp=gpar(fontsize = 16))
+
+ra<-META[rw,"PAM"]
+lv<-1:4;names(lv)<-levels(META$PAM); lv<-list(PAM= c("Basal-like"= "dodgerblue3","HER2"= "firebrick3", "Luminal A"="tan1","Luminal B"="limegreen"))
+ra<-rowAnnotation("PAM"=ra,col=lv)                 
+
+h2<-Heatmap(x2,show_row_names = FALSE,
+            column_title="Mismatch Repair",
+            cluster_rows=hc,col=col,
+            show_heatmap_legend=TRUE,
+            column_title_gp=gpar(fontsize = 16))
+
+h3<-Heatmap(x3,show_row_names = FALSE,
+            column_title="Replication Related Genes",
+            cluster_rows=hc,col=col,
+            show_heatmap_legend=TRUE,
+            column_title_gp=gpar(fontsize = 16))
+
+mcol<-c("Wild Type" = "white",
+        "Mutation" = "lightblue",
+        "Deep Deletion" = "blue",
+        "Mutation/Deep Deletion" = "navyblue",
+        "Amplification"="red")
+ta<-rep(c("p53","DNA Licensing","BER","DDR"),times=c(1,2,8,5))
+ta<-columnAnnotation(Gene=ta,
+       col=list("Gene"=c("p53"="tomato",
+                         "DNA Licensing"="dodgerblue",
+                         "BER"="forestgreen",
+                         "DDR"="purple")),
+       show_annotation_name=FALSE)
+h4<-Heatmap(xx[,-1],show_row_names = FALSE,col=mcol,
+            name="Mutations", 
+            cluster_columns=FALSE,#top_annotation = ta,
+            column_title="DNA Repair Alterations",
+            column_title_gp=gpar(fontsize = 16))
+
+
+h5<-Heatmap(xx[,1],show_row_names = FALSE,col=mcol,
+            name="TP53",show_heatmap_legend=FALSE)
+
+rp<-HeatmapAnnotation(TMB=anno_barplot(META[rw,"MUT"]),
+                      which="row")
+
+#layout(cbind(1,2,3,4:6))
+#par(cex.lab=2)
+par(mar=c(2,7,2,2))
+#plot.new();labelit("E",cex=2,xpd=NA,font=2)
+
+draw(h1+h2+h5+ra+rp+h4,
+     newpage=FALSE,
+     merge_legend=TRUE)
+
+decorate_heatmap_body("mRNA\nZ-score", {
+   grid.lines(c(-.125,-.125,4.10,4.10,-.1), 
+              c(0.33, 0,0,.33,.33), 
+               gp = gpar(lty = 2, lwd = 4,fill=NA,col="yellow"))})
+
+
+
+```
+
+
+```{r}
+# RRG heatmap with PAM50
+h3<-Heatmap(x3,show_row_names = FALSE,
+            column_title="Replication Related Genes",
+            cluster_rows=hc,col=col,
+            show_heatmap_legend=TRUE,
+            column_title_gp=gpar(fontsize = 16))
+
+h5<-Heatmap(xx[,1],show_row_names = FALSE,col=mcol,
+            name="TP53",show_heatmap_legend=FALSE)
+draw(h3+h5+ra+rp,
+     newpage=FALSE,
+     merge_legend=TRUE)
+```
+
+
+## Session Information
+
+```{r}
+sessionInfo()
+```
